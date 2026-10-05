@@ -269,9 +269,6 @@ class MainWindow(QWidget):
             return
         event.ignore()
         self.hide()
-        self.tray.showMessage(
-            "Typing Helper", "Still running in the tray.", self.icon_idle, 2000
-        )
 
 
 def main() -> int:
