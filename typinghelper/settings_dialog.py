@@ -21,7 +21,7 @@ def _spin(lo: int, hi: int, value: int, suffix: str = "") -> QSpinBox:
     sb.setValue(value)
     if suffix:
         sb.setSuffix(suffix)
-    sb.setFixedWidth(100)
+    sb.setFixedWidth(120)
     return sb
 
 

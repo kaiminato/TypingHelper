@@ -67,7 +67,7 @@ class MainWindow(QWidget):
         self.setWindowIcon(self.icon_idle)
         self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint)
         self.setWindowOpacity(self.settings.opacity / 100)
-        self.resize(420, 300)
+        self.resize(480, 340)
 
         self.editor = QPlainTextEdit()
         self.editor.setPlaceholderText("Paste or write the text to type here…")
@@ -78,7 +78,7 @@ class MainWindow(QWidget):
         self.settings_btn = QToolButton()
         self.settings_btn.setText("⚙")
         self.settings_btn.setToolTip("Settings")
-        self.settings_btn.setStyleSheet("font-size: 16px;")
+        self.settings_btn.setStyleSheet("font-size: 20px;")
         self.settings_btn.clicked.connect(self.open_settings)
 
         self.start_btn = QPushButton("Start")

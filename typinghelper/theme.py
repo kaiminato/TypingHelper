@@ -2,7 +2,7 @@
 import ctypes
 import sys
 
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import QApplication, QWidget
 
 BG = QColor("#1e1f22")
@@ -14,6 +14,7 @@ ACCENT = QColor("#3574f0")
 
 def apply_dark_theme(app: QApplication) -> None:
     app.setStyle("Fusion")
+    app.setFont(QFont("Segoe UI", 11))
     p = QPalette()
     p.setColor(QPalette.Window, BG)
     p.setColor(QPalette.WindowText, TEXT)
