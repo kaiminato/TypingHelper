@@ -1,19 +1,13 @@
-import json
-import os
-from dataclasses import asdict, dataclass, fields
+import winreg
+from dataclasses import dataclass, fields
 
-
-def config_path() -> str:
-    base = os.environ.get("APPDATA") or os.path.expanduser("~")
-    folder = os.path.join(base, "TypingHelper")
-    os.makedirs(folder, exist_ok=True)
-    return os.path.join(folder, "settings.json")
+REG_PATH = r"Software\TypingHelper"
 
 
 @dataclass
 class Settings:
-    key_delay_min: int = 80        # ms between keystrokes
-    key_delay_max: int = 120
+    key_delay_min: int = 60        # ms between keystrokes
+    key_delay_max: int = 90
     line_delay_min: int = 1000     # ms pause after each Enter
     line_delay_max: int = 3000
     typos_min: int = 5             # typos per 1000 characters
@@ -21,18 +15,27 @@ class Settings:
     hide_while_typing: bool = True
     skip_indent: bool = False      # drop leading whitespace after Enter (for auto-indenting editors)
     countdown: int = 3             # seconds before typing starts
-    opacity: int = 100            # window opacity, percent
+    opacity: int = 100             # window opacity, percent
 
     @classmethod
     def load(cls) -> "Settings":
+        """Read from HKCU\\Software\\TypingHelper; missing or bad values keep their defaults."""
+        s = cls()
         try:
-            with open(config_path(), "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, ValueError):
-            return cls()
-        known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in data.items() if k in known})
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_PATH)
+        except OSError:
+            return s
+        with key:
+            for f in fields(cls):
+                try:
+                    value, kind = winreg.QueryValueEx(key, f.name)
+                except OSError:
+                    continue
+                if kind == winreg.REG_DWORD:
+                    setattr(s, f.name, bool(value) if f.type in (bool, "bool") else int(value))
+        return s
 
     def save(self) -> None:
-        with open(config_path(), "w", encoding="utf-8") as f:
-            json.dump(asdict(self), f, indent=2)
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REG_PATH) as key:
+            for f in fields(self):
+                winreg.SetValueEx(key, f.name, 0, winreg.REG_DWORD, int(getattr(self, f.name)))

@@ -15,4 +15,4 @@ Or build a single exe with `build.bat`, which creates `dist\TypingHelper.exe`.
 
 Tray icon: green = idle, red = typing. Closing the window hides it to the tray; use the tray menu to Quit.
 
-Settings are saved in `%APPDATA%\TypingHelper\settings.json`.
+Settings are saved in the registry under `HKEY_CURRENT_USER\Software\TypingHelper`.
