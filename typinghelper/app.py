@@ -1,7 +1,7 @@
 import sys
 
 from pynput import keyboard
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .config import Settings
+from .config import Settings, load_geometry, save_geometry
 from .hotkey import LLKHF_INJECTED, WM_KEYDOWN, WM_SYSKEYDOWN, Hotkey, modifiers_down
 from .icons import BUSY_COLOR, IDLE_COLOR, status_icon
 from .overlay import CountdownOverlay
@@ -75,7 +75,17 @@ class MainWindow(QWidget):
         self.setWindowIcon(self.icon_idle)
         self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint)
         self.setWindowOpacity(self.settings.opacity / 100)
+
+        # Save position/size shortly after the user stops moving/resizing.
+        self.geometry_timer = QTimer(self)
+        self.geometry_timer.setSingleShot(True)
+        self.geometry_timer.setInterval(500)
+        self.geometry_timer.timeout.connect(self._save_geometry)
+
         self.resize(480, 340)
+        saved = load_geometry()
+        if saved:
+            self.restoreGeometry(QByteArray(saved))  # Qt moves it back on-screen if needed
 
         self.editor = QPlainTextEdit()
         self.editor.setPlaceholderText(
@@ -110,7 +120,7 @@ class MainWindow(QWidget):
         self.tray = QSystemTrayIcon(self.icon_idle, self)
         menu = QMenu()
         self.act_show = QAction("Show / Hide", self, triggered=self.toggle_visible)
-        self.act_start = QAction("Start", self, triggered=self.toggle_start)
+        self.act_start = QAction("Type clipboard", self, triggered=self.tray_start)
         self.act_pause = QAction("Pause (F8)", self, triggered=self.toggle_pause)
         act_settings = QAction("Settings…", self, triggered=self.open_settings)
         act_quit = QAction("Quit", self, triggered=self.quit)
@@ -160,7 +170,7 @@ class MainWindow(QWidget):
         self.tray.setIcon(icon)
         self.setWindowIcon(icon)
         self.start_btn.setText("Stop" if busy else "Start")
-        self.act_start.setText("Stop (F9)" if busy else "Start")
+        self.act_start.setText("Stop (F9)" if busy else "Type clipboard")
         self.act_pause.setEnabled(state in ("typing", "paused"))
         self.act_pause.setText("Resume (F8)" if state == "paused" else "Pause (F8)")
         self.editor.setReadOnly(busy)
@@ -294,7 +304,32 @@ class MainWindow(QWidget):
         else:
             self.setWindowOpacity(previous_opacity)
 
+    def tray_start(self) -> None:
+        """Tray menu: type the clipboard (with countdown, since the menu took focus)."""
+        if self.state != "idle":
+            self.stop()
+            return
+        text = QApplication.clipboard().text()
+        if not text:
+            self._set_state("idle", "Clipboard has no text.")
+            return
+        self.editor.setPlainText(text)
+        self.start()
+
+    def _save_geometry(self) -> None:
+        if self.isVisible():
+            save_geometry(bytes(self.saveGeometry().data()))
+
+    def moveEvent(self, event) -> None:
+        super().moveEvent(event)
+        self.geometry_timer.start()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.geometry_timer.start()
+
     def quit(self) -> None:
+        self._save_geometry()
         self.quitting = True
         if self.worker:
             self.worker.stop()

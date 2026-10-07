@@ -2,6 +2,22 @@ import winreg
 from dataclasses import dataclass, fields
 
 REG_PATH = r"Software\TypingHelper"
+_GEOMETRY = "window_geometry"
+
+
+def load_geometry() -> bytes:
+    """Saved main-window position/size (Qt saveGeometry blob), or b"" if none."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_PATH) as key:
+            value, kind = winreg.QueryValueEx(key, _GEOMETRY)
+    except OSError:
+        return b""
+    return bytes(value) if kind == winreg.REG_BINARY else b""
+
+
+def save_geometry(blob: bytes) -> None:
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REG_PATH) as key:
+        winreg.SetValueEx(key, _GEOMETRY, 0, winreg.REG_BINARY, blob)
 
 
 @dataclass
