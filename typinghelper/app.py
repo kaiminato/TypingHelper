@@ -293,10 +293,10 @@ class MainWindow(QWidget):
             self._set_state("idle", "Clipboard has no text.")
             return
         self.editor.setPlainText(text)
+        # Clipboard runs leave the window hidden afterwards (hidden_by_us stays False).
         self.hidden_by_us = False
         if self.settings.hide_while_typing and self.isVisible():
             self.hide()
-            self.hidden_by_us = True
         self._set_state("countdown", "Release the hotkey to start…")
         self.release_timer.start()
 
@@ -349,6 +349,7 @@ class MainWindow(QWidget):
             return
         self.editor.setPlainText(text)
         self.start()
+        self.hidden_by_us = False  # clipboard run: don't bring the window back afterwards
 
     def _save_geometry(self) -> None:
         if self.isVisible():
