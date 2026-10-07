@@ -318,6 +318,8 @@ class MainWindow(QWidget):
 
     def _on_finished(self, reason: str) -> None:
         self.worker = None
+        if reason.startswith("done") and not self.settings.keep_text:
+            self.editor.clear()
         self._finish_ui(reason[:1].upper() + reason[1:] + ("" if reason.startswith("error") else "."))
 
     def _finish_ui(self, msg: str) -> None:

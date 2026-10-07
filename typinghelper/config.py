@@ -13,6 +13,7 @@ class Settings:
     typos_min: int = 5             # typos per 1000 characters
     typos_max: int = 20
     hide_while_typing: bool = True
+    keep_text: bool = True         # keep the text box contents after typing finishes
     skip_indent: bool = False      # drop leading whitespace after Enter (for auto-indenting editors)
     countdown: int = 3             # seconds before typing starts
     opacity: int = 100             # window opacity, percent
