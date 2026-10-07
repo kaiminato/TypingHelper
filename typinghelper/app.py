@@ -27,7 +27,7 @@ from .hotkey import (
     modifiers_down,
 )
 from .icons import BUSY_COLOR, IDLE_COLOR, status_icon
-from .overlay import CountdownOverlay
+from .overlay import CountdownOverlay, ProgressBadge
 from .settings_dialog import SettingsDialog
 from .theme import apply_dark_theme, dark_title_bar
 from .typer import TypingWorker
@@ -73,6 +73,8 @@ class MainWindow(QWidget):
         self.icon_idle = status_icon(IDLE_COLOR)
         self.icon_busy = status_icon(BUSY_COLOR)
         self.overlay = CountdownOverlay()
+        self.badge = ProgressBadge()
+        self.progress_pct = 0
 
         self._build_ui()
         self._build_tray()
@@ -191,6 +193,12 @@ class MainWindow(QWidget):
     # ---------- state ----------
     def _set_state(self, state: str, msg: str = "") -> None:
         self.state = state
+        if state == "countdown":
+            self.progress_pct = 0
+        if state in ("typing", "paused"):
+            self.badge.show_progress(self.progress_pct, self.tray.geometry(), state == "paused")
+        else:
+            self.badge.hide()
         busy = state != "idle"
         icon = self.icon_busy if busy else self.icon_idle
         self.tray.setIcon(icon)
@@ -380,6 +388,9 @@ class MainWindow(QWidget):
     def _on_progress(self, done: int, total: int) -> None:
         if self.state == "typing":
             pct = done * 100 // max(total, 1)
+            if pct != self.progress_pct:
+                self.progress_pct = pct
+                self.badge.show_progress(pct, self.tray.geometry())
             self.status.setText(f"Typing {done}/{total} ({pct}%)  F8 pause, F9 stop")
             self.tray.setToolTip(f"Typing Helper — typing {pct}%")
 
