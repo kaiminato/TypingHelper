@@ -6,6 +6,8 @@ _user32 = ctypes.windll.user32
 
 WM_KEYDOWN = 0x0100
 WM_SYSKEYDOWN = 0x0104
+WM_KEYUP = 0x0101
+WM_SYSKEYUP = 0x0105
 LLKHF_INJECTED = 0x10
 
 # modifier name -> virtual-key codes that count as that modifier

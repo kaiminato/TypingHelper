@@ -17,7 +17,15 @@ from PySide6.QtWidgets import (
 )
 
 from .config import Settings, load_geometry, save_geometry
-from .hotkey import LLKHF_INJECTED, WM_KEYDOWN, WM_SYSKEYDOWN, Hotkey, modifiers_down
+from .hotkey import (
+    LLKHF_INJECTED,
+    WM_KEYDOWN,
+    WM_KEYUP,
+    WM_SYSKEYDOWN,
+    WM_SYSKEYUP,
+    Hotkey,
+    modifiers_down,
+)
 from .icons import BUSY_COLOR, IDLE_COLOR, status_icon
 from .overlay import CountdownOverlay
 from .settings_dialog import SettingsDialog
@@ -26,6 +34,7 @@ from .typer import TypingWorker
 
 PAUSE_KEY = keyboard.Key.f8
 STOP_KEY = keyboard.Key.f9
+STOP_VK = 0x78  # F9
 
 
 class Bridge(QObject):
@@ -44,6 +53,7 @@ class MainWindow(QWidget):
         self.countdown_left = 0
         self.quitting = False
         self.in_settings = False
+        self.stop_key_held = False  # F9 swallowed by us and not yet released
         self.start_hotkey = Hotkey.parse(self.settings.start_hotkey)
 
         self.bridge = Bridge()
@@ -142,6 +152,24 @@ class MainWindow(QWidget):
                 self.bridge.hotkey.emit("stop")
 
         def win32_filter(msg, data):
+            if data.flags & LLKHF_INJECTED or self.in_settings:
+                return True
+
+            # "F9 = start / stop": F9 belongs to us, so swallow it. Ignore the
+            # key's auto-repeat so holding it doesn't start and then stop.
+            if data.vkCode == STOP_VK and self.settings.stop_key_starts:
+                if msg in (WM_KEYDOWN, WM_SYSKEYDOWN):
+                    if self.stop_key_held:
+                        self.listener.suppress_event()
+                    if not modifiers_down():
+                        self.stop_key_held = True
+                        self.bridge.hotkey.emit("toggle")
+                        self.listener.suppress_event()
+                elif msg in (WM_KEYUP, WM_SYSKEYUP) and self.stop_key_held:
+                    self.stop_key_held = False
+                    self.listener.suppress_event()
+                return True
+
             # Runs on the hook thread. Swallow the clipboard hotkey so the target
             # app doesn't also act on it (Ctrl+Shift+V = paste in many apps).
             # Key auto-repeat while held is swallowed too, but only fires once.
@@ -149,8 +177,6 @@ class MainWindow(QWidget):
             if (
                 hk
                 and msg in (WM_KEYDOWN, WM_SYSKEYDOWN)
-                and not data.flags & LLKHF_INJECTED
-                and not self.in_settings
                 and hk.matches(data.vkCode)
             ):
                 if self.state == "idle":
@@ -343,6 +369,11 @@ class MainWindow(QWidget):
             self.stop()
         elif name == "pause":
             self.toggle_pause()
+        elif name == "toggle":
+            if self.state == "idle":
+                self.start_from_clipboard()
+            else:
+                self.stop()
         elif name == "clipboard":
             self.start_from_clipboard()
 
