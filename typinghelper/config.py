@@ -34,7 +34,7 @@ class Settings:
     countdown: int = 3             # seconds before typing starts
     opacity: int = 100             # window opacity, percent
     start_hotkey: str = "Ctrl+Shift+V"  # types the clipboard; empty = disabled
-    stop_key_starts: bool = False  # F9 also starts typing the clipboard (F9 = start/stop)
+    stop_key_starts: bool = True # F9 also starts typing the clipboard (F9 = start/stop)
 
     @classmethod
     def load(cls) -> "Settings":
