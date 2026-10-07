@@ -16,6 +16,7 @@ class Settings:
     skip_indent: bool = False      # drop leading whitespace after Enter (for auto-indenting editors)
     countdown: int = 3             # seconds before typing starts
     opacity: int = 100             # window opacity, percent
+    start_hotkey: str = "Ctrl+Shift+V"  # types the clipboard; empty = disabled
 
     @classmethod
     def load(cls) -> "Settings":
@@ -31,11 +32,18 @@ class Settings:
                     value, kind = winreg.QueryValueEx(key, f.name)
                 except OSError:
                     continue
-                if kind == winreg.REG_DWORD:
+                if f.type in (str, "str"):
+                    if kind == winreg.REG_SZ:
+                        setattr(s, f.name, value)
+                elif kind == winreg.REG_DWORD:
                     setattr(s, f.name, bool(value) if f.type in (bool, "bool") else int(value))
         return s
 
     def save(self) -> None:
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REG_PATH) as key:
             for f in fields(self):
-                winreg.SetValueEx(key, f.name, 0, winreg.REG_DWORD, int(getattr(self, f.name)))
+                value = getattr(self, f.name)
+                if isinstance(value, str):
+                    winreg.SetValueEx(key, f.name, 0, winreg.REG_SZ, value)
+                else:
+                    winreg.SetValueEx(key, f.name, 0, winreg.REG_DWORD, int(value))

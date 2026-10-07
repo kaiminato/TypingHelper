@@ -1,17 +1,21 @@
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
+    QKeySequenceEdit,
     QLabel,
+    QMessageBox,
     QSlider,
     QSpinBox,
     QWidget,
 )
 
 from .config import Settings
+from .hotkey import Hotkey
 from .theme import dark_title_bar
 
 
@@ -56,6 +60,11 @@ class SettingsDialog(QDialog):
         self.hide.setChecked(s.hide_while_typing)
         self.skip_indent = QCheckBox("Skip leading spaces after Enter (for auto-indenting editors)")
         self.skip_indent.setChecked(s.skip_indent)
+        self.hotkey = QKeySequenceEdit(QKeySequence(s.start_hotkey))
+        self.hotkey.setMaximumSequenceLength(1)
+        self.hotkey.setClearButtonEnabled(True)
+        self.hotkey.setFixedWidth(200)
+        self.hotkey.setToolTip("Click, then press the key combination. Clear it to disable.")
         self.opacity = QSlider(Qt.Horizontal)
         self.opacity.setRange(30, 100)
         self.opacity.setValue(s.opacity)
@@ -67,6 +76,7 @@ class SettingsDialog(QDialog):
         form.addRow("Next line wait:", _range_row(self.line_min, self.line_max))
         form.addRow("Typos per 1000 chars:", _range_row(self.typo_min, self.typo_max))
         form.addRow("Start countdown:", _range_row(self.countdown))
+        form.addRow("Type clipboard hotkey:", _range_row(self.hotkey))
         form.addRow("Window opacity:", self.opacity)
         form.addRow(self.hide)
         form.addRow(self.skip_indent)
@@ -98,6 +108,23 @@ class SettingsDialog(QDialog):
         self.opacity.setValue(d.opacity)
         self.hide.setChecked(d.hide_while_typing)
         self.skip_indent.setChecked(d.skip_indent)
+        self.hotkey.setKeySequence(QKeySequence(d.start_hotkey))
+
+    def _hotkey_text(self) -> str:
+        return self.hotkey.keySequence().toString(QKeySequence.PortableText)
+
+    def accept(self) -> None:
+        text = self._hotkey_text()
+        if text and Hotkey.parse(text) is None:
+            QMessageBox.warning(
+                self,
+                "Hotkey",
+                f'"{text}" can\'t be used as a hotkey.\n\n'
+                "Use Ctrl / Shift / Alt / Win with a letter, digit or F-key "
+                "(e.g. Ctrl+Shift+V), or a plain F-key.",
+            )
+            return
+        super().accept()
 
     def result_settings(self) -> Settings:
         def ordered(a: QSpinBox, b: QSpinBox):
@@ -117,4 +144,5 @@ class SettingsDialog(QDialog):
             skip_indent=self.skip_indent.isChecked(),
             countdown=self.countdown.value(),
             opacity=self.opacity.value(),
+            start_hotkey=self._hotkey_text(),
         )

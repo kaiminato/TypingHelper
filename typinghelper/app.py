@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from .config import Settings
+from .hotkey import LLKHF_INJECTED, WM_KEYDOWN, WM_SYSKEYDOWN, Hotkey, modifiers_down
 from .icons import BUSY_COLOR, IDLE_COLOR, status_icon
 from .overlay import CountdownOverlay
 from .settings_dialog import SettingsDialog
@@ -42,6 +43,8 @@ class MainWindow(QWidget):
         self.hidden_by_us = False
         self.countdown_left = 0
         self.quitting = False
+        self.in_settings = False
+        self.start_hotkey = Hotkey.parse(self.settings.start_hotkey)
 
         self.bridge = Bridge()
         self.bridge.progress.connect(self._on_progress)
@@ -51,6 +54,11 @@ class MainWindow(QWidget):
         self.countdown_timer = QTimer(self)
         self.countdown_timer.setInterval(1000)
         self.countdown_timer.timeout.connect(self._countdown_tick)
+
+        # After the clipboard hotkey, wait until the user lets go of Ctrl/Shift/...
+        self.release_timer = QTimer(self)
+        self.release_timer.setInterval(30)
+        self.release_timer.timeout.connect(self._wait_for_release)
 
         self.icon_idle = status_icon(IDLE_COLOR)
         self.icon_busy = status_icon(BUSY_COLOR)
@@ -70,7 +78,11 @@ class MainWindow(QWidget):
         self.resize(480, 340)
 
         self.editor = QPlainTextEdit()
-        self.editor.setPlaceholderText("Paste or write the text to type here…")
+        self.editor.setPlaceholderText(
+            "Paste or write the text to type here…\n\n"
+            "Or copy text anywhere and press the clipboard hotkey (default Ctrl+Shift+V) "
+            "in the target app to type it there."
+        )
 
         self.status = QLabel()
         self.status.setStyleSheet("color: #7f838a;")
@@ -119,7 +131,23 @@ class MainWindow(QWidget):
             elif key == STOP_KEY:
                 self.bridge.hotkey.emit("stop")
 
-        self.listener = keyboard.Listener(on_press=on_press)
+        def win32_filter(msg, data):
+            # Runs on the hook thread. Swallow the clipboard hotkey so the target
+            # app doesn't also act on it (Ctrl+Shift+V = paste in many apps).
+            hk = self.start_hotkey
+            if (
+                hk
+                and msg in (WM_KEYDOWN, WM_SYSKEYDOWN)
+                and not data.flags & LLKHF_INJECTED
+                and self.state == "idle"
+                and not self.in_settings
+                and hk.matches(data.vkCode)
+            ):
+                self.bridge.hotkey.emit("clipboard")
+                self.listener.suppress_event()
+            return True
+
+        self.listener = keyboard.Listener(on_press=on_press, win32_event_filter=win32_filter)
         self.listener.daemon = True
         self.listener.start()
 
@@ -191,6 +219,11 @@ class MainWindow(QWidget):
         self.countdown_timer.stop()
         self.overlay.stop()
         self.countdown_left = -1
+        self._begin_typing()
+
+    def _begin_typing(self) -> None:
+        if self.state != "countdown":  # stopped meanwhile
+            return
         if self.isVisible() and self.isActiveWindow():
             self._finish_ui("Focus is on Typing Helper — click into the target window first.")
             return
@@ -203,8 +236,34 @@ class MainWindow(QWidget):
         self._set_state("typing")
         self.worker.start()
 
+    def start_from_clipboard(self) -> None:
+        """Clipboard hotkey: type the clipboard into the window that has focus now."""
+        if self.state != "idle":
+            return
+        if self.isVisible() and self.isActiveWindow():
+            self._set_state("idle", "Press the hotkey in the app you want to type into.")
+            return
+        text = QApplication.clipboard().text()
+        if not text:
+            self._set_state("idle", "Clipboard has no text.")
+            return
+        self.editor.setPlainText(text)
+        self.hidden_by_us = False
+        if self.settings.hide_while_typing and self.isVisible():
+            self.hide()
+            self.hidden_by_us = True
+        self._set_state("countdown", "Release the hotkey to start…")
+        self.release_timer.start()
+
+    def _wait_for_release(self) -> None:
+        if modifiers_down():
+            return
+        self.release_timer.stop()
+        QTimer.singleShot(150, self._begin_typing)
+
     def stop(self) -> None:
         if self.state == "countdown":
+            self.release_timer.stop()
             self.countdown_timer.stop()
             self.overlay.stop()
             self._finish_ui("Cancelled.")
@@ -221,9 +280,15 @@ class MainWindow(QWidget):
             return
         previous_opacity = self.windowOpacity()
         dlg = SettingsDialog(self.settings, self, on_opacity=self.setWindowOpacity)
-        if dlg.exec():
+        self.in_settings = True  # let the hotkey reach the dialog's key recorder
+        try:
+            accepted = dlg.exec()
+        finally:
+            self.in_settings = False
+        if accepted:
             self.settings = dlg.result_settings()
             self.settings.save()
+            self.start_hotkey = Hotkey.parse(self.settings.start_hotkey)
             self.setWindowOpacity(self.settings.opacity / 100)
         else:
             self.setWindowOpacity(previous_opacity)
@@ -242,6 +307,8 @@ class MainWindow(QWidget):
             self.stop()
         elif name == "pause":
             self.toggle_pause()
+        elif name == "clipboard":
+            self.start_from_clipboard()
 
     def _on_progress(self, done: int, total: int) -> None:
         if self.state == "typing":
