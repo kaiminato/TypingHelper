@@ -1,13 +1,35 @@
 """Background worker that types text like a human, with jitter and typos."""
+import ctypes
 import random
 import threading
 import time
 import unicodedata
 from typing import Callable, Optional
 
-from pynput.keyboard import Controller, Key
+from pynput.keyboard import Controller, Key, KeyCode
 
 from .config import Settings
+
+_user32 = ctypes.windll.user32
+_user32.VkKeyScanW.argtypes = (ctypes.c_wchar,)
+_user32.VkKeyScanW.restype = ctypes.c_short
+VK_CAPITAL = 0x14
+
+
+def _key_for_char(ch: str):
+    """(vk, needs_shift) if `ch` is on the current layout with no/Shift modifier, else None."""
+    res = _user32.VkKeyScanW(ch)
+    if res == -1:
+        return None
+    vk, mods = res & 0xFF, (res >> 8) & 0xFF
+    if mods not in (0, 1):  # needs Ctrl/Alt (AltGr) -> send as Unicode instead
+        return None
+    return vk, mods == 1
+
+
+def _caps_lock_on() -> bool:
+    return bool(_user32.GetKeyState(VK_CAPITAL) & 1)
+
 
 # US QWERTY rows with their horizontal offset (in key widths) from the left edge.
 _ROWS = [
@@ -115,8 +137,23 @@ class TypingWorker:
         if unicodedata.category(ch) == "Cc":
             self.skipped += 1
             return
-        # Keys on the current layout are sent as real key presses; anything else
-        # (accents, CJK, emoji, smart quotes) is sent as a Unicode character.
+        # Characters on the keyboard are typed as real keys, holding Shift for
+        # capitals and symbols like a person would. Many apps (remote desktop,
+        # VMs, games, some web editors) mishandle Unicode input for these.
+        key = _key_for_char(ch)
+        if key:
+            vk, shift = key
+            if ch.isalpha() and _caps_lock_on():
+                shift = not shift
+            if shift:
+                self.kb.press(Key.shift)
+                time.sleep(random.uniform(0.01, 0.03))
+            self._tap(KeyCode.from_vk(vk))
+            if shift:
+                time.sleep(random.uniform(0.005, 0.02))
+                self.kb.release(Key.shift)
+            return
+        # Anything else (accents, CJK, emoji, smart quotes) is sent as a Unicode character.
         try:
             self.kb.type(ch)
         except Exception:

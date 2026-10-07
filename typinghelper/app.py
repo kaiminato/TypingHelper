@@ -134,16 +134,17 @@ class MainWindow(QWidget):
         def win32_filter(msg, data):
             # Runs on the hook thread. Swallow the clipboard hotkey so the target
             # app doesn't also act on it (Ctrl+Shift+V = paste in many apps).
+            # Key auto-repeat while held is swallowed too, but only fires once.
             hk = self.start_hotkey
             if (
                 hk
                 and msg in (WM_KEYDOWN, WM_SYSKEYDOWN)
                 and not data.flags & LLKHF_INJECTED
-                and self.state == "idle"
                 and not self.in_settings
                 and hk.matches(data.vkCode)
             ):
-                self.bridge.hotkey.emit("clipboard")
+                if self.state == "idle":
+                    self.bridge.hotkey.emit("clipboard")
                 self.listener.suppress_event()
             return True
 
