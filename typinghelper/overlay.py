@@ -1,5 +1,5 @@
 """Big translucent, click-through countdown number shown in the middle of the screen."""
-from PySide6.QtCore import QEasingCurve, QRect, QRectF, Qt, QVariantAnimation
+from PySide6.QtCore import QEasingCurve, QPoint, QRect, QRectF, Qt, QTimer, QVariantAnimation
 from PySide6.QtGui import QColor, QCursor, QFont, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -95,14 +95,43 @@ class ProgressBadge(QWidget):
         self.resize(self.W, self.H)
         self.percent = 0
         self.paused = False
+        self.follow_cursor = False  # True: stick next to the mouse pointer instead of the tray
+
+        self.follow_timer = QTimer(self)
+        self.follow_timer.setInterval(16)  # ~60 fps
+        self.follow_timer.timeout.connect(self._place_at_cursor)
 
     def show_progress(self, percent: int, anchor: QRect, paused: bool = False) -> None:
         self.percent = max(0, min(100, percent))
         self.paused = paused
-        self._place(anchor)
+        if self.follow_cursor:
+            self._place_at_cursor()
+            if not self.follow_timer.isActive():
+                self.follow_timer.start()
+        else:
+            self.follow_timer.stop()
+            self._place(anchor)
         if not self.isVisible():
             self.show()
         self.update()
+
+    def hideEvent(self, event) -> None:
+        self.follow_timer.stop()
+        super().hideEvent(event)
+
+    def _place_at_cursor(self) -> None:
+        """Below-right of the pointer; flips left/up near screen edges."""
+        pos = QCursor.pos()
+        screen = QGuiApplication.screenAt(pos) or QGuiApplication.primaryScreen()
+        avail = screen.availableGeometry()
+        x, y = pos.x() + 18, pos.y() + 22
+        if x + self.W > avail.right():
+            x = pos.x() - self.W - 10
+        if y + self.H > avail.bottom():
+            y = pos.y() - self.H - 10
+        target = QPoint(max(avail.left(), x), max(avail.top(), y))
+        if target != self.pos():
+            self.move(target)
 
     def _place(self, icon: QRect) -> None:
         """Centre above the tray icon (below it if the taskbar is at the top)."""

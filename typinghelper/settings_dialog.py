@@ -66,6 +66,8 @@ class SettingsDialog(QDialog):
         )
         self.stop_key_starts = QCheckBox("F9 also starts typing the clipboard (F9 = start / stop)")
         self.stop_key_starts.setChecked(s.stop_key_starts)
+        self.badge_follows_cursor = QCheckBox("Show progress % next to the mouse cursor (instead of the tray)")
+        self.badge_follows_cursor.setChecked(s.badge_follows_cursor)
         self.keep_text = QCheckBox("Keep text after typing finishes")
         self.keep_text.setChecked(s.keep_text)
         self.skip_indent = QCheckBox("Skip leading spaces after Enter (for auto-indenting editors)")
@@ -91,6 +93,7 @@ class SettingsDialog(QDialog):
         form.addRow(self.hide)
         form.addRow("Mouse clicks to type clipboard:", _range_row(self.click_count))
         form.addRow(self.stop_key_starts)
+        form.addRow(self.badge_follows_cursor)
         form.addRow(self.keep_text)
         form.addRow(self.skip_indent)
         hint = QLabel("Hotkeys:  F8 = pause / resume,  F9 = stop")
@@ -121,6 +124,7 @@ class SettingsDialog(QDialog):
         self.opacity.setValue(d.opacity)
         self.hide.setChecked(d.hide_while_typing)
         self.keep_text.setChecked(d.keep_text)
+        self.badge_follows_cursor.setChecked(d.badge_follows_cursor)
         self.stop_key_starts.setChecked(d.stop_key_starts)
         self.click_count.setValue(d.click_count)
         self.skip_indent.setChecked(d.skip_indent)
@@ -158,6 +162,7 @@ class SettingsDialog(QDialog):
             typos_max=tmax,
             hide_while_typing=self.hide.isChecked(),
             keep_text=self.keep_text.isChecked(),
+            badge_follows_cursor=self.badge_follows_cursor.isChecked(),
             stop_key_starts=self.stop_key_starts.isChecked(),
             click_count=2 if self.click_count.value() == 1 else self.click_count.value(),
             skip_indent=self.skip_indent.isChecked(),

@@ -75,6 +75,7 @@ class MainWindow(QWidget):
         self.icon_busy = status_icon(BUSY_COLOR)
         self.overlay = CountdownOverlay()
         self.badge = ProgressBadge()
+        self.badge.follow_cursor = self.settings.badge_follows_cursor
         self.progress_pct = 0
 
         self._build_ui()
@@ -352,6 +353,7 @@ class MainWindow(QWidget):
             self.settings.save()
             self.start_hotkey = Hotkey.parse(self.settings.start_hotkey)
             self.clicks.required = self.settings.click_count
+            self.badge.follow_cursor = self.settings.badge_follows_cursor
             self.setWindowOpacity(self.settings.opacity / 100)
         else:
             self.setWindowOpacity(previous_opacity)

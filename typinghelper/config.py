@@ -35,6 +35,7 @@ class Settings:
     opacity: int = 100             # window opacity, percent
     start_hotkey: str = "Ctrl+Shift+V"  # types the clipboard; empty = disabled
     click_count: int = 3           # N quick left-clicks type the clipboard; 0 = off
+    badge_follows_cursor: bool = False  # progress badge next to the mouse instead of the tray
     stop_key_starts: bool = True # F9 also starts typing the clipboard (F9 = start/stop)
 
     @classmethod
