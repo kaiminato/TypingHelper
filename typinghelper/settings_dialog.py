@@ -58,6 +58,12 @@ class SettingsDialog(QDialog):
         self.countdown = _spin(0, 30, s.countdown, " s")
         self.hide = QCheckBox("Hide window while typing")
         self.hide.setChecked(s.hide_while_typing)
+        self.click_count = _spin(0, 10, s.click_count, " clicks")
+        self.click_count.setSpecialValueText("Off")
+        self.click_count.setToolTip(
+            "Quick left-clicks in the same spot that start typing the clipboard there. "
+            "0 = off. Note: a triple-click selects the line, so typing replaces it."
+        )
         self.stop_key_starts = QCheckBox("F9 also starts typing the clipboard (F9 = start / stop)")
         self.stop_key_starts.setChecked(s.stop_key_starts)
         self.keep_text = QCheckBox("Keep text after typing finishes")
@@ -83,6 +89,7 @@ class SettingsDialog(QDialog):
         form.addRow("Type clipboard hotkey:", _range_row(self.hotkey))
         form.addRow("Window opacity:", self.opacity)
         form.addRow(self.hide)
+        form.addRow("Mouse clicks to type clipboard:", _range_row(self.click_count))
         form.addRow(self.stop_key_starts)
         form.addRow(self.keep_text)
         form.addRow(self.skip_indent)
@@ -115,6 +122,7 @@ class SettingsDialog(QDialog):
         self.hide.setChecked(d.hide_while_typing)
         self.keep_text.setChecked(d.keep_text)
         self.stop_key_starts.setChecked(d.stop_key_starts)
+        self.click_count.setValue(d.click_count)
         self.skip_indent.setChecked(d.skip_indent)
         self.hotkey.setKeySequence(QKeySequence(d.start_hotkey))
 
@@ -151,6 +159,7 @@ class SettingsDialog(QDialog):
             hide_while_typing=self.hide.isChecked(),
             keep_text=self.keep_text.isChecked(),
             stop_key_starts=self.stop_key_starts.isChecked(),
+            click_count=2 if self.click_count.value() == 1 else self.click_count.value(),
             skip_indent=self.skip_indent.isChecked(),
             countdown=self.countdown.value(),
             opacity=self.opacity.value(),

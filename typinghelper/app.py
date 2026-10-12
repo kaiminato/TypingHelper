@@ -1,6 +1,6 @@
 import sys
 
-from pynput import keyboard
+from pynput import keyboard, mouse
 from PySide6.QtCore import QByteArray, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .clicks import MultiClickDetector
 from .config import Settings, load_geometry, save_geometry
 from .hotkey import (
     LLKHF_INJECTED,
@@ -190,6 +191,22 @@ class MainWindow(QWidget):
         self.listener.daemon = True
         self.listener.start()
 
+        # N quick left-clicks -> type the clipboard where you clicked
+        self.clicks = MultiClickDetector(lambda: self.bridge.hotkey.emit("clicks"))
+        self.clicks.required = self.settings.click_count
+
+        def on_click(x, y, button, pressed):
+            if button != mouse.Button.left or self.in_settings:
+                return
+            if pressed:
+                self.clicks.press(x, y)
+            else:
+                self.clicks.release()
+
+        self.mouse_listener = mouse.Listener(on_click=on_click)
+        self.mouse_listener.daemon = True
+        self.mouse_listener.start()
+
     # ---------- state ----------
     def _set_state(self, state: str, msg: str = "") -> None:
         self.state = state
@@ -297,7 +314,7 @@ class MainWindow(QWidget):
         self.hidden_by_us = False
         if self.settings.hide_while_typing and self.isVisible():
             self.hide()
-        self._set_state("countdown", "Release the hotkey to start…")
+        self._set_state("countdown", "Starting…")
         self.release_timer.start()
 
     def _wait_for_release(self) -> None:
@@ -334,6 +351,7 @@ class MainWindow(QWidget):
             self.settings = dlg.result_settings()
             self.settings.save()
             self.start_hotkey = Hotkey.parse(self.settings.start_hotkey)
+            self.clicks.required = self.settings.click_count
             self.setWindowOpacity(self.settings.opacity / 100)
         else:
             self.setWindowOpacity(previous_opacity)
@@ -369,6 +387,7 @@ class MainWindow(QWidget):
         if self.worker:
             self.worker.stop()
         self.listener.stop()
+        self.mouse_listener.stop()
         self.tray.hide()
         QApplication.quit()
 
@@ -383,7 +402,7 @@ class MainWindow(QWidget):
                 self.start_from_clipboard()
             else:
                 self.stop()
-        elif name == "clipboard":
+        elif name in ("clipboard", "clicks"):
             self.start_from_clipboard()
 
     def _on_progress(self, done: int, total: int) -> None:
